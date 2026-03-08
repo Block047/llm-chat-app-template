@@ -240,6 +240,13 @@
 		<footer>
 			<p>Cloudflare Workers AI Chat Template &copy; 2025</p>
 		</footer>
+		<!-- Load marked, KaTeX core, then KaTeX auto-render IN ORDER before chat.js -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+		<script>
+			marked.setOptions({ breaks: true, gfm: true });
+		</script>
 		<script src="chat.js"></script>
 	</body>
 </html>
