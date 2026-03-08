@@ -14,8 +14,13 @@ import { Env, ChatMessage } from "./types";
 const MODEL_ID = "@cf/openai/gpt-oss-120b";
 
 // Default system prompt
-const SYSTEM_PROMPT =
-	"You are a helpful, friendly assistant. Provide concise and accurate responses. \n You were made for assisting students with their work, and you are the gpt-oss-120b model";
+const SYSTEM_PROMPT = `You are a helpful, friendly assistant for students. Provide concise and accurate responses.
+
+When writing math, ALWAYS use LaTeX notation with double backslashes:
+- Inline math: \\\\(x^2\\\\) 
+- Display math: \\\\[x^2 = y^2\\\\]
+
+Never drop or simplify backslashes in math expressions. Always preserve \\\\( and \\\\) and \\\\[ and \\\\] exactly as written.`;
 
 export default {
 	/**
