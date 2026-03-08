@@ -2,19 +2,30 @@
  * LLM Chat App Frontend
  *
  * Handles the chat UI interactions and communication with the backend API.
- * Includes markdown rendering via marked.js
+ * Includes markdown rendering via marked.js and math rendering via KaTeX.
  */
 
-// Load marked.js for markdown rendering
+// ── Load marked.js for markdown rendering ──
 const markedScript = document.createElement("script");
 markedScript.src = "https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js";
 markedScript.onload = () => {
-	marked.setOptions({
-		breaks: true,       // Convert \n to <br>
-		gfm: true,          // GitHub flavored markdown (tables, strikethrough, etc.)
-	});
+	marked.setOptions({ breaks: true, gfm: true });
 };
 document.head.appendChild(markedScript);
+
+// ── Load KaTeX for math rendering ──
+const katexCSS = document.createElement("link");
+katexCSS.rel = "stylesheet";
+katexCSS.href = "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css";
+document.head.appendChild(katexCSS);
+
+const katexScript = document.createElement("script");
+katexScript.src = "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js";
+document.head.appendChild(katexScript);
+
+const katexAutoRender = document.createElement("script");
+katexAutoRender.src = "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js";
+document.head.appendChild(katexAutoRender);
 
 // DOM elements
 const chatMessages = document.getElementById("chat-messages");
@@ -50,15 +61,35 @@ userInput.addEventListener("keydown", function (e) {
 sendButton.addEventListener("click", sendMessage);
 
 /**
- * Renders markdown text safely into an element.
+ * Renders math inside an element using KaTeX auto-render.
+ * Handles both \(...\) inline and \[...\] block math,
+ * as well as $...$ and $$...$$ delimiters.
+ */
+function renderMath(element) {
+	if (typeof renderMathInElement !== "undefined") {
+		renderMathInElement(element, {
+			delimiters: [
+				{ left: "$$", right: "$$", display: true },
+				{ left: "\\[", right: "\\]", display: true },
+				{ left: "$", right: "$", display: false },
+				{ left: "\\(", right: "\\)", display: false },
+			],
+			throwOnError: false,
+		});
+	}
+}
+
+/**
+ * Renders markdown then math into an element.
  * Falls back to plain text if marked.js hasn't loaded yet.
  */
-function renderMarkdown(element, text) {
+function renderContent(element, text) {
 	if (typeof marked !== "undefined") {
 		element.innerHTML = marked.parse(text);
 	} else {
 		element.textContent = text;
 	}
+	renderMath(element);
 }
 
 /**
@@ -102,21 +133,13 @@ async function sendMessage() {
 		// Send request to API
 		const response = await fetch("/api/chat", {
 			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				messages: chatHistory,
-			}),
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ messages: chatHistory }),
 		});
 
 		// Handle errors
-		if (!response.ok) {
-			throw new Error("Failed to get response");
-		}
-		if (!response.body) {
-			throw new Error("Response body is null");
-		}
+		if (!response.ok) throw new Error("Failed to get response");
+		if (!response.body) throw new Error("Response body is null");
 
 		// Process streaming response
 		const reader = response.body.getReader();
@@ -124,8 +147,17 @@ async function sendMessage() {
 		let responseText = "";
 		let buffer = "";
 
+		// Debounce math rendering — only re-render math on flush, not every token
+		let renderTimer = null;
 		const flushAssistantText = () => {
-			renderMarkdown(assistantTextEl, responseText);
+			if (typeof marked !== "undefined") {
+				assistantTextEl.innerHTML = marked.parse(responseText);
+			} else {
+				assistantTextEl.textContent = responseText;
+			}
+			// Debounce KaTeX — expensive to run every token
+			clearTimeout(renderTimer);
+			renderTimer = setTimeout(() => renderMath(assistantTextEl), 150);
 			chatMessages.scrollTop = chatMessages.scrollHeight;
 		};
 
@@ -134,27 +166,18 @@ async function sendMessage() {
 			const { done, value } = await reader.read();
 
 			if (done) {
-				// Process any remaining complete events in buffer
 				const parsed = consumeSseEvents(buffer + "\n\n");
 				for (const data of parsed.events) {
-					if (data === "[DONE]") {
-						break;
-					}
+					if (data === "[DONE]") break;
 					try {
 						const jsonData = JSON.parse(data);
 						let content = "";
-						if (
-							typeof jsonData.response === "string" &&
-							jsonData.response.length > 0
-						) {
+						if (typeof jsonData.response === "string" && jsonData.response.length > 0) {
 							content = jsonData.response;
 						} else if (jsonData.choices?.[0]?.delta?.content) {
 							content = jsonData.choices[0].delta.content;
 						}
-						if (content) {
-							responseText += content;
-							flushAssistantText();
-						}
+						if (content) { responseText += content; flushAssistantText(); }
 					} catch (e) {
 						console.error("Error parsing SSE data as JSON:", e, data);
 					}
@@ -162,39 +185,30 @@ async function sendMessage() {
 				break;
 			}
 
-			// Decode chunk
 			buffer += decoder.decode(value, { stream: true });
 			const parsed = consumeSseEvents(buffer);
 			buffer = parsed.buffer;
 			for (const data of parsed.events) {
-				if (data === "[DONE]") {
-					sawDone = true;
-					buffer = "";
-					break;
-				}
+				if (data === "[DONE]") { sawDone = true; buffer = ""; break; }
 				try {
 					const jsonData = JSON.parse(data);
 					let content = "";
-					if (
-						typeof jsonData.response === "string" &&
-						jsonData.response.length > 0
-					) {
+					if (typeof jsonData.response === "string" && jsonData.response.length > 0) {
 						content = jsonData.response;
 					} else if (jsonData.choices?.[0]?.delta?.content) {
 						content = jsonData.choices[0].delta.content;
 					}
-					if (content) {
-						responseText += content;
-						flushAssistantText();
-					}
+					if (content) { responseText += content; flushAssistantText(); }
 				} catch (e) {
 					console.error("Error parsing SSE data as JSON:", e, data);
 				}
 			}
-			if (sawDone) {
-				break;
-			}
+			if (sawDone) break;
 		}
+
+		// Final render with math after stream completes
+		clearTimeout(renderTimer);
+		renderContent(assistantTextEl, responseText);
 
 		// Add completed response to chat history
 		if (responseText.length > 0) {
@@ -202,15 +216,9 @@ async function sendMessage() {
 		}
 	} catch (error) {
 		console.error("Error:", error);
-		addMessageToChat(
-			"assistant",
-			"Sorry, there was an error processing your request.",
-		);
+		addMessageToChat("assistant", "Sorry, there was an error processing your request.");
 	} finally {
-		// Hide typing indicator
 		typingIndicator.classList.remove("visible");
-
-		// Re-enable input
 		isProcessing = false;
 		userInput.disabled = false;
 		sendButton.disabled = false;
@@ -220,7 +228,7 @@ async function sendMessage() {
 
 /**
  * Helper function to add message to chat.
- * User messages are plain text; assistant messages get markdown rendering.
+ * User messages are plain text; assistant messages get markdown + math rendering.
  */
 function addMessageToChat(role, content) {
 	const messageEl = document.createElement("div");
@@ -229,7 +237,7 @@ function addMessageToChat(role, content) {
 	if (role === "assistant") {
 		const mdDiv = document.createElement("div");
 		mdDiv.className = "md-content";
-		renderMarkdown(mdDiv, content);
+		renderContent(mdDiv, content);
 		messageEl.appendChild(mdDiv);
 	} else {
 		messageEl.innerHTML = `<p>${content}</p>`;
@@ -246,7 +254,6 @@ function consumeSseEvents(buffer) {
 	while ((eventEndIndex = normalized.indexOf("\n\n")) !== -1) {
 		const rawEvent = normalized.slice(0, eventEndIndex);
 		normalized = normalized.slice(eventEndIndex + 2);
-
 		const lines = rawEvent.split("\n");
 		const dataLines = [];
 		for (const line of lines) {
