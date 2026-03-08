@@ -77,7 +77,7 @@
 				align-self: flex-start;
 			}
 
-			/* ── Markdown rendering styles ── */
+			/* ── Markdown styles ── */
 			.md-content {
 				overflow-wrap: anywhere;
 			}
@@ -85,12 +85,8 @@
 				white-space: pre-line;
 				margin: 0.4em 0;
 			}
-			.md-content p:first-child {
-				margin-top: 0;
-			}
-			.md-content p:last-child {
-				margin-bottom: 0;
-			}
+			.md-content p:first-child { margin-top: 0; }
+			.md-content p:last-child  { margin-bottom: 0; }
 			.md-content h1,
 			.md-content h2,
 			.md-content h3,
@@ -103,9 +99,7 @@
 				margin: 0.4em 0 0.4em 1.4em;
 				padding: 0;
 			}
-			.md-content li {
-				margin: 0.2em 0;
-			}
+			.md-content li { margin: 0.2em 0; }
 			.md-content pre {
 				background: #1e1e2e;
 				color: #cdd6f4;
@@ -149,9 +143,7 @@
 				background: #f0f0f5;
 				font-weight: 600;
 			}
-			.md-content tr:nth-child(even) td {
-				background: #fafafa;
-			}
+			.md-content tr:nth-child(even) td { background: #fafafa; }
 			.md-content a {
 				color: var(--primary-color);
 				text-decoration: underline;
@@ -161,13 +153,19 @@
 				border-top: 1px solid var(--border-color);
 				margin: 0.8em 0;
 			}
-			.md-content strong {
-				font-weight: 600;
+			.md-content strong { font-weight: 600; }
+			.md-content em     { font-style: italic; }
+
+			/* ── KaTeX overrides ── */
+			.md-content .katex-display {
+				margin: 0.6em 0;
+				overflow-x: auto;
 			}
-			.md-content em {
-				font-style: italic;
+			.md-content .katex {
+				font-size: 1em;
 			}
 
+			/* ── Input area ── */
 			.message-input {
 				display: flex;
 				padding: 0.75rem;
@@ -193,9 +191,7 @@
 				cursor: pointer;
 				transition: background-color 0.2s;
 			}
-			#send-button:hover {
-				background-color: var(--primary-hover);
-			}
+			#send-button:hover  { background-color: var(--primary-hover); }
 			#send-button:disabled {
 				background-color: var(--text-light);
 				cursor: not-allowed;
@@ -206,9 +202,7 @@
 				color: var(--text-light);
 				padding: 1rem;
 			}
-			.typing-indicator.visible {
-				display: block;
-			}
+			.typing-indicator.visible { display: block; }
 			footer {
 				margin-top: 1rem;
 				text-align: center;
@@ -246,7 +240,6 @@
 		<footer>
 			<p>Cloudflare Workers AI Chat Template &copy; 2025</p>
 		</footer>
-		<!-- Chat app script -->
 		<script src="chat.js"></script>
 	</body>
 </html>
