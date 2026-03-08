@@ -1,101 +1,126 @@
 /**
- * LLM Chat Application Template
+ * LLM Chat Application - Platform-Agnostic Express Server
  *
- * A simple chat application using Cloudflare Workers AI.
- * This template demonstrates how to implement an LLM-powered chat interface with
- * streaming responses using Server-Sent Events (SSE).
+ * Replaces Cloudflare Workers index.ts with a standard Node.js/Express server.
+ * Uses OpenRouter API (OpenAI-compatible) for LLM access.
+ * Supports streaming via Server-Sent Events (SSE).
  *
  * @license MIT
  */
-import { Env, ChatMessage } from "./types";
 
-// Model ID for Workers AI model
-// https://developers.cloudflare.com/workers-ai/models/
-const MODEL_ID = "@cf/openai/gpt-oss-120b";
+import express, { Request, Response } from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 
-// Default system prompt
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+app.use(express.json());
+
+// ─── Config ────────────────────────────────────────────────────────────────────
+
+// Swap this env var to change models without touching code.
+// Best free option right now: deepseek/deepseek-chat-v3-0324:free
+// Other solid free options:
+//   meta-llama/llama-4-maverick:free
+//   openai/gpt-oss-120b:free  (your old model, still available!)
+const MODEL_ID = process.env.MODEL_ID ?? "deepseek/deepseek-chat-v3-0324:free";
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
+const PORT = process.env.PORT ?? 3000;
+
+// Your original system prompt — unchanged
 const SYSTEM_PROMPT = `You are a helpful, friendly assistant for students. Provide concise and accurate responses.
-
 When writing math, ALWAYS use LaTeX notation with double backslashes:
 - Inline math: \\\\(x^2\\\\) 
 - Display math: \\\\[x^2 = y^2\\\\]
-
 Never drop or simplify backslashes in math expressions. Always preserve \\\\( and \\\\) and \\\\[ and \\\\] exactly as written.`;
 
-export default {
-	/**
-	 * Main request handler for the Worker
-	 */
-	async fetch(
-		request: Request,
-		env: Env,
-		ctx: ExecutionContext,
-	): Promise<Response> {
-		const url = new URL(request.url);
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
-		// Handle static assets (frontend)
-		if (url.pathname === "/" || !url.pathname.startsWith("/api/")) {
-			return env.ASSETS.fetch(request);
-		}
-
-		// API Routes
-		if (url.pathname === "/api/chat") {
-			// Handle POST requests for chat
-			if (request.method === "POST") {
-				return handleChatRequest(request, env);
-			}
-
-			// Method not allowed for other request types
-			return new Response("Method not allowed", { status: 405 });
-		}
-
-		// Handle 404 for unmatched routes
-		return new Response("Not found", { status: 404 });
-	},
-} satisfies ExportedHandler<Env>;
-
-/**
- * Handles chat API requests
- */
-async function handleChatRequest(
-	request: Request,
-	env: Env,
-): Promise<Response> {
-	try {
-		// Parse JSON request body
-		const { messages = [] } = (await request.json()) as {
-			messages: ChatMessage[];
-		};
-
-		// Add system prompt if not present
-		if (!messages.some((msg) => msg.role === "system")) {
-			messages.unshift({ role: "system", content: SYSTEM_PROMPT });
-		}
-
-const stream = await env.AI.run(
-  MODEL_ID,
-  {
-    messages,
-    max_tokens: 4096,
-    stream: true,
-  },
-);
-
-		return new Response(stream, {
-			headers: {
-				"content-type": "text/event-stream; charset=utf-8",
-				"cache-control": "no-cache",
-				connection: "keep-alive",
-			},
-		});
-	} catch (error) {
-		console.error("Error processing chat request:", error);
-		return new Response(
-			JSON.stringify({ error: "Failed to process request" }),
-			{
-				status: 500,
-				headers: { "content-type": "application/json" },
-			},
-		);
-	}
+interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
 }
+
+// ─── Static Assets ─────────────────────────────────────────────────────────────
+
+// Serves your frontend from the /public directory (same as env.ASSETS did)
+app.use(express.static(path.join(__dirname, "public")));
+
+// ─── Chat API Route ────────────────────────────────────────────────────────────
+
+app.post("/api/chat", async (req: Request, res: Response) => {
+  try {
+    if (!OPENROUTER_API_KEY) {
+      res.status(500).json({ error: "OPENROUTER_API_KEY is not set" });
+      return;
+    }
+
+    const { messages = [] } = req.body as { messages: ChatMessage[] };
+
+    // Inject system prompt if missing (same logic as original)
+    if (!messages.some((msg) => msg.role === "system")) {
+      messages.unshift({ role: "system", content: SYSTEM_PROMPT });
+    }
+
+    // Call OpenRouter — fully OpenAI-compatible, just a different base URL
+    const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        // Optional but good practice — identifies your app on OpenRouter's dashboard
+        "X-Title": "LLM Chat App",
+      },
+      body: JSON.stringify({
+        model: MODEL_ID,
+        messages,
+        max_tokens: 4096,
+        stream: true,
+      }),
+    });
+
+    if (!upstream.ok) {
+      const errorText = await upstream.text();
+      console.error("OpenRouter error:", errorText);
+      res.status(upstream.status).json({ error: "Upstream API error", detail: errorText });
+      return;
+    }
+
+    // Stream the SSE response straight through to the client
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const reader = upstream.body!.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(decoder.decode(value, { stream: true }));
+    }
+
+    res.end();
+  } catch (error) {
+    console.error("Error processing chat request:", error);
+    // Only send headers if they haven't been sent yet (i.e. error before streaming started)
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to process request" });
+    }
+  }
+});
+
+// ─── Catch-all: Serve index.html for SPA routing ───────────────────────────────
+
+app.get("*", (_req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// ─── Start ─────────────────────────────────────────────────────────────────────
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Using model: ${MODEL_ID}`);
+});
