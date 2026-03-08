@@ -71,7 +71,7 @@ const stream = await env.AI.run(
   MODEL_ID,
   {
     messages,
-    max_tokens: 1024,
+    max_tokens: 4096,
     stream: true,
   },
 );
