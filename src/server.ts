@@ -25,7 +25,7 @@ app.use(express.json());
 // Other solid free options:
 //   meta-llama/llama-4-maverick:free
 //   openai/gpt-oss-120b:free  (your old model, still available!)
-const MODEL_ID = process.env.MODEL_ID ?? "openai/gpt-oss-120b:free";
+const MODEL_ID = process.env.MODEL_ID ?? "deepseek/deepseek-chat-v3-0324:free";
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
 const PORT = process.env.PORT ?? 3000;
 
@@ -45,8 +45,8 @@ interface ChatMessage {
 
 // ─── Static Assets ─────────────────────────────────────────────────────────────
 
-// Serves your frontend from the /public directory (same as env.ASSETS did)
-app.use(express.static(path.join(__dirname, "public")));
+// __dirname = dist/ at runtime, so go up one level to reach public/
+app.use(express.static(path.join(__dirname, "../public")));
 
 // ─── Chat API Route ────────────────────────────────────────────────────────────
 
@@ -115,7 +115,7 @@ app.post("/api/chat", async (req: Request, res: Response) => {
 // ─── Catch-all: Serve index.html for SPA routing ───────────────────────────────
 
 app.get("*", (_req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.sendFile(path.join(__dirname, "../public", "index.html"));
 });
 
 // ─── Start ─────────────────────────────────────────────────────────────────────
