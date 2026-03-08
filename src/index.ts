@@ -25,7 +25,7 @@ app.use(express.json());
 // Other solid free options:
 //   meta-llama/llama-4-maverick:free
 //   openai/gpt-oss-120b:free  (your old model, still available!)
-const MODEL_ID = process.env.MODEL_ID ?? "deepseek/deepseek-chat-v3-0324:free";
+const MODEL_ID = process.env.MODEL_ID ?? "openai/gpt-oss-120b:free";
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
 const PORT = process.env.PORT ?? 3000;
 
