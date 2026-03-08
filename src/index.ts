@@ -78,7 +78,7 @@ const stream = await fetch(
     body: JSON.stringify({
       model: MODEL_ID,
       messages,
-      max_tokens: 2048,
+      max_tokens: 1024,
       stream: true,
     }),
   }
