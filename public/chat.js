@@ -5,27 +5,7 @@
  * Includes markdown rendering via marked.js and math rendering via KaTeX.
  */
 
-// ── Load marked.js for markdown rendering ──
-const markedScript = document.createElement("script");
-markedScript.src = "https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js";
-markedScript.onload = () => {
-	marked.setOptions({ breaks: true, gfm: true });
-};
-document.head.appendChild(markedScript);
-
-// ── Load KaTeX for math rendering ──
-const katexCSS = document.createElement("link");
-katexCSS.rel = "stylesheet";
-katexCSS.href = "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css";
-document.head.appendChild(katexCSS);
-
-const katexScript = document.createElement("script");
-katexScript.src = "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js";
-document.head.appendChild(katexScript);
-
-const katexAutoRender = document.createElement("script");
-katexAutoRender.src = "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js";
-document.head.appendChild(katexAutoRender);
+// marked.js, KaTeX, and KaTeX auto-render are loaded via index.html script tags
 
 // DOM elements
 const chatMessages = document.getElementById("chat-messages");
