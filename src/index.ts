@@ -67,22 +67,14 @@ async function handleChatRequest(
 			messages.unshift({ role: "system", content: SYSTEM_PROMPT });
 		}
 
-const stream = await fetch(
-  `https://api.cloudflare.com/client/v4/accounts/${env.ACCOUNT_ID}/ai/v1/chat/completions`,
+const stream = await env.AI.run(
+  MODEL_ID,
   {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${env.API_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL_ID,
-      messages,
-      max_tokens: 1024,
-      stream: true,
-    }),
-  }
-).then(r => r.body);
+    messages,
+    max_tokens: 1024,
+    stream: true,
+  },
+);
 
 		return new Response(stream, {
 			headers: {
