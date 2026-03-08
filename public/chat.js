@@ -2,7 +2,19 @@
  * LLM Chat App Frontend
  *
  * Handles the chat UI interactions and communication with the backend API.
+ * Includes markdown rendering via marked.js
  */
+
+// Load marked.js for markdown rendering
+const markedScript = document.createElement("script");
+markedScript.src = "https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js";
+markedScript.onload = () => {
+	marked.setOptions({
+		breaks: true,       // Convert \n to <br>
+		gfm: true,          // GitHub flavored markdown (tables, strikethrough, etc.)
+	});
+};
+document.head.appendChild(markedScript);
 
 // DOM elements
 const chatMessages = document.getElementById("chat-messages");
@@ -38,6 +50,18 @@ userInput.addEventListener("keydown", function (e) {
 sendButton.addEventListener("click", sendMessage);
 
 /**
+ * Renders markdown text safely into an element.
+ * Falls back to plain text if marked.js hasn't loaded yet.
+ */
+function renderMarkdown(element, text) {
+	if (typeof marked !== "undefined") {
+		element.innerHTML = marked.parse(text);
+	} else {
+		element.textContent = text;
+	}
+}
+
+/**
  * Sends a message to the chat API and processes the response
  */
 async function sendMessage() {
@@ -68,9 +92,9 @@ async function sendMessage() {
 		// Create new assistant response element
 		const assistantMessageEl = document.createElement("div");
 		assistantMessageEl.className = "message assistant-message";
-		assistantMessageEl.innerHTML = "<p></p>";
+		assistantMessageEl.innerHTML = "<div class='md-content'></div>";
 		chatMessages.appendChild(assistantMessageEl);
-		const assistantTextEl = assistantMessageEl.querySelector("p");
+		const assistantTextEl = assistantMessageEl.querySelector(".md-content");
 
 		// Scroll to bottom
 		chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -99,8 +123,9 @@ async function sendMessage() {
 		const decoder = new TextDecoder();
 		let responseText = "";
 		let buffer = "";
+
 		const flushAssistantText = () => {
-			assistantTextEl.textContent = responseText;
+			renderMarkdown(assistantTextEl, responseText);
 			chatMessages.scrollTop = chatMessages.scrollHeight;
 		};
 
@@ -117,7 +142,6 @@ async function sendMessage() {
 					}
 					try {
 						const jsonData = JSON.parse(data);
-						// Handle both Workers AI format (response) and OpenAI format (choices[0].delta.content)
 						let content = "";
 						if (
 							typeof jsonData.response === "string" &&
@@ -150,7 +174,6 @@ async function sendMessage() {
 				}
 				try {
 					const jsonData = JSON.parse(data);
-					// Handle both Workers AI format (response) and OpenAI format (choices[0].delta.content)
 					let content = "";
 					if (
 						typeof jsonData.response === "string" &&
@@ -196,15 +219,23 @@ async function sendMessage() {
 }
 
 /**
- * Helper function to add message to chat
+ * Helper function to add message to chat.
+ * User messages are plain text; assistant messages get markdown rendering.
  */
 function addMessageToChat(role, content) {
 	const messageEl = document.createElement("div");
 	messageEl.className = `message ${role}-message`;
-	messageEl.innerHTML = `<p>${content}</p>`;
-	chatMessages.appendChild(messageEl);
 
-	// Scroll to bottom
+	if (role === "assistant") {
+		const mdDiv = document.createElement("div");
+		mdDiv.className = "md-content";
+		renderMarkdown(mdDiv, content);
+		messageEl.appendChild(mdDiv);
+	} else {
+		messageEl.innerHTML = `<p>${content}</p>`;
+	}
+
+	chatMessages.appendChild(messageEl);
 	chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
