@@ -21,12 +21,12 @@ app.use(express.json());
 // ─── Config ────────────────────────────────────────────────────────────────────
 
 // Swap this env var to change models without touching code.
-// Best free option right now: deepseek/deepseek-chat-v3-0324:free
-// Other solid free options:
-//   meta-llama/llama-4-maverick:free
-//   openai/gpt-oss-120b:free  (your old model, still available!)
-const MODEL_ID = process.env.MODEL_ID ?? "openai/gpt-oss-120b:free";
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
+// Other solid Groq free options:
+//   llama-3.1-8b-instant  (faster, lighter)
+//   gemma2-9b-it
+//   mixtral-8x7b-32768
+const MODEL_ID = process.env.MODEL_ID ?? "llama-3.3-70b-versatile";
+const GROQ_API_KEY = process.env.GROQ_API_KEY ?? "";
 const PORT = process.env.PORT ?? 3000;
 
 // Your original system prompt — unchanged
@@ -52,8 +52,8 @@ app.use(express.static(path.join(__dirname, "../public")));
 
 app.post("/api/chat", async (req: Request, res: Response) => {
   try {
-    if (!OPENROUTER_API_KEY) {
-      res.status(500).json({ error: "OPENROUTER_API_KEY is not set" });
+    if (!GROQ_API_KEY) {
+      res.status(500).json({ error: "GROQ_API_KEY is not set" });
       return;
     }
 
@@ -64,14 +64,12 @@ app.post("/api/chat", async (req: Request, res: Response) => {
       messages.unshift({ role: "system", content: SYSTEM_PROMPT });
     }
 
-    // Call OpenRouter — fully OpenAI-compatible, just a different base URL
-    const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    // Call Groq — fully OpenAI-compatible
+    const upstream = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Authorization": `Bearer ${GROQ_API_KEY}`,
         "Content-Type": "application/json",
-        // Optional but good practice — identifies your app on OpenRouter's dashboard
-        "X-Title": "LLM Chat App",
       },
       body: JSON.stringify({
         model: MODEL_ID,
@@ -83,7 +81,7 @@ app.post("/api/chat", async (req: Request, res: Response) => {
 
     if (!upstream.ok) {
       const errorText = await upstream.text();
-      console.error("OpenRouter error:", errorText);
+      console.error("Groq error:", errorText);
       res.status(upstream.status).json({ error: "Upstream API error", detail: errorText });
       return;
     }
@@ -114,7 +112,7 @@ app.post("/api/chat", async (req: Request, res: Response) => {
 
 // ─── Catch-all: Serve index.html for SPA routing ───────────────────────────────
 
-app.get(/^(?!\/api).*$/, (_req: Request, res: Response) => {
+app.get("*", (_req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, "../public", "index.html"));
 });
 
